@@ -16,70 +16,265 @@ jobs:
       - name: Install
         run: |
           sudo apt-get update
-          sudo apt-get install -y ffmpeg
-          pip install edge-tts pillow
+          sudo apt-get install -y ffmpeg fonts-noto-core
+          pip install pillow edge-tts
 
-      - name: Create video
+      - name: Create Kids Story Video
         run: |
           cat > make_video.py <<'PY'
           import asyncio
           import edge_tts
-          from PIL import Image, ImageDraw
+          import os
+          import random
           import subprocess
+          from PIL import Image, ImageDraw, ImageFont
 
-          story = """एक बार एक छोटा खरगोश जंगल में रहता था।
-          वह बहुत मेहनती और ईमानदार था।
-          एक दिन उसे रास्ते में एक चमकता हुआ सिक्का मिला।
-          खरगोश ने सोचा कि यह किसी का होगा।
-          उसने जंगल के सभी जानवरों से पूछा।
-          आखिरकार एक बूढ़े कछुए ने बताया कि सिक्का उसका है।
-          खरगोश ने सिक्का वापस कर दिया।
-          कछुआ बहुत खुश हुआ और बोला कि ईमानदारी सबसे बड़ी अच्छाई है।
-          सीख: हमेशा ईमानदार रहना चाहिए।"""
+          W, H = 1280, 720
+          FPS = 30
 
-          async def voice():
+          FONT = "/usr/share/fonts/truetype/noto/NotoSansDevanagari-Regular.ttf"
+          BOLD = "/usr/share/fonts/truetype/noto/NotoSansDevanagari-Bold.ttf"
+
+          stories = [
+              {
+                  "title": "ईमानदार खरगोश",
+                  "scenes": [
+                      ("एक सुंदर जंगल में मोनू नाम का छोटा खरगोश रहता था।", "forest"),
+                      ("एक दिन उसे रास्ते में चमकता हुआ सिक्का मिला।", "coin"),
+                      ("मोनू ने सोचा, यह सिक्का जरूर किसी का होगा।", "think"),
+                      ("वह जंगल में अपने दोस्तों से पूछने लगा।", "friends"),
+                      ("तभी एक बूढ़ा कछुआ अपना खोया हुआ सिक्का ढूंढता हुआ आया।", "turtle"),
+                      ("मोनू ने तुरंत सिक्का कछुए को वापस कर दिया।", "return"),
+                      ("कछुआ बहुत खुश हुआ और उसने मोनू को धन्यवाद दिया।", "happy"),
+                      ("सीख: हमेशा ईमानदार रहना चाहिए।", "lesson")
+                  ]
+              },
+              {
+                  "title": "नन्ही चिड़िया की मदद",
+                  "scenes": [
+                      ("एक पेड़ पर नन्ही चिड़िया चिन्नी रहती थी।", "bird"),
+                      ("एक दिन तेज हवा से उसका घोंसला टूट गया।", "wind"),
+                      ("चिन्नी बहुत उदास होकर पेड़ के नीचे बैठ गई।", "sad"),
+                      ("एक गिलहरी ने उसे देखा और मदद करने का फैसला किया।", "squirrel"),
+                      ("दोनों ने मिलकर छोटी-छोटी टहनियां इकट्ठी कीं।", "sticks"),
+                      ("कुछ देर में नया घोंसला तैयार हो गया।", "nest"),
+                      ("चिन्नी खुशी से गाने लगी और गिलहरी को धन्यवाद दिया।", "happybird"),
+                      ("सीख: मिल-जुलकर काम करने से मुश्किल काम आसान हो जाता है।", "lesson")
+                  ]
+              }
+          ]
+
+          story = random.choice(stories)
+
+          async def make_voice():
+              full_text = " ".join(x[0] for x in story["scenes"])
               tts = edge_tts.Communicate(
-                  story,
+                  full_text,
                   "hi-IN-SwaraNeural"
               )
               await tts.save("voice.mp3")
 
-          asyncio.run(voice())
+          asyncio.run(make_voice())
 
-          img = Image.new("RGB", (1280, 720), "white")
-          draw = ImageDraw.Draw(img)
+          def font(path, size):
+              return ImageFont.truetype(path, size)
 
-          draw.text(
-              (350, 300),
-              "ईमानदार खरगोश",
-              fill="black"
-          )
+          def draw_center(draw, text, y, fnt):
+              box = draw.multiline_textbbox(
+                  (0, 0), text, font=fnt, align="center"
+              )
+              x = (W - (box[2] - box[0])) // 2
+              draw.multiline_text(
+                  (x, y),
+                  text,
+                  font=fnt,
+                  fill="black",
+                  align="center",
+                  spacing=8,
+                  stroke_width=2,
+                  stroke_fill="white"
+              )
 
-          img.save("cover.png")
+          def make_scene(kind, text, index):
+              img = Image.new("RGB", (W, H), (190, 230, 255))
+              d = ImageDraw.Draw(img)
 
+              # Sky
+              d.rectangle([0, 0, W, H], fill=(185, 225, 255))
+
+              # Sun
+              d.ellipse([1030, 50, 1150, 170], fill=(255, 220, 80))
+
+              # Grass
+              d.rectangle([0, 520, W, H], fill=(125, 190, 90))
+
+              # Mountains
+              d.polygon(
+                  [(0,520),(230,270),(430,520)],
+                  fill=(120,170,125)
+              )
+              d.polygon(
+                  [(350,520),(650,250),(950,520)],
+                  fill=(105,160,120)
+              )
+
+              # Trees
+              for x in [80, 1100]:
+                  d.rectangle([x+45,390,x+75,560], fill=(120,80,45))
+                  d.ellipse([x,300,x+120,440], fill=(55,150,75))
+                  d.ellipse([x+25,260,x+145,410], fill=(65,165,80))
+
+              # Characters
+              if kind in ["forest","coin","think","friends","turtle","return","happy"]:
+                  # Rabbit
+                  cx, cy = 500, 430
+
+                  # ears
+                  d.ellipse([cx-55,cy-150,cx-5,cy-50], fill=(245,245,245), outline=(80,80,80), width=4)
+                  d.ellipse([cx+5,cy-150,cx+55,cy-50], fill=(245,245,245), outline=(80,80,80), width=4)
+
+                  # body/head
+                  d.ellipse([cx-80,cy-70,cx+80,cy+90], fill=(250,250,250), outline=(80,80,80), width=4)
+                  d.ellipse([cx-65,cy+40,cx+65,cy+190], fill=(245,245,245), outline=(80,80,80), width=4)
+
+                  # eyes
+                  d.ellipse([cx-40,cy-15,cx-20,cy+5], fill=(30,30,30))
+                  d.ellipse([cx+20,cy-15,cx+40,cy+5], fill=(30,30,30))
+
+                  # nose
+                  d.ellipse([cx-8,cy+15,cx+8,cy+30], fill=(230,120,130))
+
+                  # arms
+                  d.line([cx-55,cy+70,cx-110,cy+110], fill=(80,80,80), width=8)
+                  d.line([cx+55,cy+70,cx+110,cy+110], fill=(80,80,80), width=8)
+
+              # Coin
+              if kind in ["coin","return"]:
+                  d.ellipse([610,400,710,500], fill=(255,205,45), outline=(180,130,20), width=6)
+                  draw_center(d, "₹", 410, font(BOLD, 55))
+
+              # Turtle
+              if kind in ["turtle","return","happy"]:
+                  x,y=820,470
+                  d.ellipse([x-90,y-55,x+90,y+55], fill=(75,155,85), outline=(40,90,50), width=5)
+                  d.ellipse([x+70,y-35,x+125,y+20], fill=(90,180,100), outline=(40,90,50), width=4)
+                  d.ellipse([x+90,y-20,x+100,y-10], fill=(20,20,20))
+                  d.ellipse([x-80,y-5,x-45,y+30], fill=(90,180,100))
+                  d.ellipse([x+20,y-5,x+55,y+30], fill=(90,180,100))
+
+              # Bird
+              if kind in ["bird","wind","sad","happybird"]:
+                  x,y=600,280
+                  d.ellipse([x-70,y-45,x+70,y+45], fill=(250,220,60), outline=(100,90,30), width=4)
+                  d.polygon([(x+60,y),(x+120,y-25),(x+120,y+25)], fill=(240,150,50))
+                  d.ellipse([x+25,y-25,x+40,y-10], fill=(20,20,20))
+                  d.arc([x-50,y-30,x+50,y+60], 200, 340, fill=(180,150,30), width=8)
+
+              # Squirrel
+              if kind in ["squirrel","sticks","nest"]:
+                  x,y=850,450
+                  d.ellipse([x-65,y-55,x+65,y+65], fill=(175,105,55), outline=(100,60,35), width=4)
+                  d.ellipse([x+45,y-90,x+105,y-10], fill=(185,115,60), outline=(100,60,35), width=4)
+                  d.ellipse([x+60,y-55,x+75,y-40], fill=(20,20,20))
+                  d.arc([x-130,y-130,x+20,y+40], 270, 90, fill=(180,105,50), width=25)
+
+              # Nest
+              if kind in ["nest","happybird"]:
+                  d.ellipse([430,400,760,510], fill=(135,85,45), outline=(80,50,30), width=5)
+                  for i in range(8):
+                      xx=460+i*35
+                      d.line([xx,420,xx+40,480], fill=(190,120,60), width=8)
+
+              # Wind lines
+              if kind == "wind":
+                  for yy in [300,370,440]:
+                      d.arc([150,yy,600,yy+100], 190, 350, fill=(255,255,255), width=8)
+
+              # Sad cloud
+              if kind == "sad":
+                  d.ellipse([180,120,400,240], fill=(170,175,185))
+                  d.ellipse([320,100,560,250], fill=(180,185,195))
+                  d.ellipse([480,130,700,240], fill=(170,175,185))
+
+              # Story text box
+              d.rounded_rectangle(
+                  [70, 555, 1210, 690],
+                  radius=25,
+                  fill=(255,255,255),
+                  outline=(70,70,70),
+                  width=3
+              )
+
+              draw_center(
+                  d,
+                  text,
+                  575,
+                  font(FONT, 30)
+              )
+
+              # Scene number
+              d.text(
+                  (30,25),
+                  f"कहानी {index+1}",
+                  font=font(BOLD,24),
+                  fill=(50,50,50)
+              )
+
+              img.save(f"scene_{index:02d}.png")
+
+          for i, (text, kind) in enumerate(story["scenes"]):
+              make_scene(kind, text, i)
+
+          # Create concat file
+          with open("concat.txt", "w", encoding="utf-8") as f:
+              for i in range(len(story["scenes"])):
+                  f.write(f"file 'scene_{i:02d}.png'\n")
+                  f.write("duration 7\n")
+              f.write(
+                  f"file 'scene_{len(story['scenes'])-1:02d}.png'\n"
+              )
+
+          # Create slideshow video
           subprocess.run([
-              "ffmpeg", "-y",
-              "-loop", "1",
-              "-i", "cover.png",
-              "-i", "voice.mp3",
-              "-c:v", "libx264",
-              "-tune", "stillimage",
-              "-c:a", "aac",
-              "-b:a", "128k",
-              "-pix_fmt", "yuv420p",
+              "ffmpeg","-y",
+              "-f","concat",
+              "-safe","0",
+              "-i","concat.txt",
+              "-vf",
+              "scale=1280:720,format=yuv420p",
+              "-r",str(FPS),
+              "-c:v","libx264",
+              "-pix_fmt","yuv420p",
+              "slides.mp4"
+          ], check=True)
+
+          # Add narration
+          subprocess.run([
+              "ffmpeg","-y",
+              "-i","slides.mp4",
+              "-i","voice.mp3",
+              "-c:v","copy",
+              "-c:a","aac",
+              "-b:a","128k",
               "-shortest",
               "kids-story.mp4"
           ], check=True)
 
-          print("Video created successfully")
+          print("Created:", story["title"])
+
+          with open("story_title.txt","w",encoding="utf-8") as f:
+              f.write(story["title"])
+
           PY
 
           python make_video.py
 
-      - name: Save video
+      - name: Save Video
         uses: actions/upload-artifact@v4
         with:
           name: kids-story-video
           path: |
             kids-story.mp4
-            cover.png
+            story_title.txt
+            scene_*.png
+          retention-days: 7
