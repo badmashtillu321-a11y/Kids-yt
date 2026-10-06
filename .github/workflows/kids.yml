@@ -17,264 +17,238 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y ffmpeg fonts-noto-core
-          pip install pillow edge-tts
+          pip install edge-tts pillow
 
-      - name: Create Kids Story Video
+      - name: Generate Story Video
         run: |
           cat > make_video.py <<'PY'
-          import asyncio
+          import asyncio, random, subprocess, textwrap
           import edge_tts
-          import os
-          import random
-          import subprocess
           from PIL import Image, ImageDraw, ImageFont
 
           W, H = 1280, 720
-          FPS = 30
-
           FONT = "/usr/share/fonts/truetype/noto/NotoSansDevanagari-Regular.ttf"
           BOLD = "/usr/share/fonts/truetype/noto/NotoSansDevanagari-Bold.ttf"
 
           stories = [
               {
-                  "title": "ईमानदार खरगोश",
-                  "scenes": [
-                      ("एक सुंदर जंगल में मोनू नाम का छोटा खरगोश रहता था।", "forest"),
-                      ("एक दिन उसे रास्ते में चमकता हुआ सिक्का मिला।", "coin"),
-                      ("मोनू ने सोचा, यह सिक्का जरूर किसी का होगा।", "think"),
-                      ("वह जंगल में अपने दोस्तों से पूछने लगा।", "friends"),
-                      ("तभी एक बूढ़ा कछुआ अपना खोया हुआ सिक्का ढूंढता हुआ आया।", "turtle"),
-                      ("मोनू ने तुरंत सिक्का कछुए को वापस कर दिया।", "return"),
-                      ("कछुआ बहुत खुश हुआ और उसने मोनू को धन्यवाद दिया।", "happy"),
-                      ("सीख: हमेशा ईमानदार रहना चाहिए।", "lesson")
-                  ]
+                "title":"चतुर खरगोश",
+                "scenes":[
+                  ("एक हरे-भरे जंगल में मोनू नाम का खरगोश रहता था।","rabbit"),
+                  ("एक दिन जंगल में उसे एक छोटी सी घंटी मिली।","rabbit_coin"),
+                  ("मोनू ने सोचा कि यह घंटी जरूर किसी की होगी।","think"),
+                  ("वह अपने दोस्तों के पास गया और सबको घंटी के बारे में बताया।","friends"),
+                  ("तभी एक हिरण आया और बोला कि घंटी उसकी थी।","deer"),
+                  ("मोनू ने खुशी से घंटी हिरण को वापस कर दी।","return"),
+                  ("हिरण ने मोनू को धन्यवाद दिया और दोनों दोस्त बन गए।","happy"),
+                  ("सीख: ईमानदारी और समझदारी हमेशा काम आती है।","lesson")
+                ]
               },
               {
-                  "title": "नन्ही चिड़िया की मदद",
-                  "scenes": [
-                      ("एक पेड़ पर नन्ही चिड़िया चिन्नी रहती थी।", "bird"),
-                      ("एक दिन तेज हवा से उसका घोंसला टूट गया।", "wind"),
-                      ("चिन्नी बहुत उदास होकर पेड़ के नीचे बैठ गई।", "sad"),
-                      ("एक गिलहरी ने उसे देखा और मदद करने का फैसला किया।", "squirrel"),
-                      ("दोनों ने मिलकर छोटी-छोटी टहनियां इकट्ठी कीं।", "sticks"),
-                      ("कुछ देर में नया घोंसला तैयार हो गया।", "nest"),
-                      ("चिन्नी खुशी से गाने लगी और गिलहरी को धन्यवाद दिया।", "happybird"),
-                      ("सीख: मिल-जुलकर काम करने से मुश्किल काम आसान हो जाता है।", "lesson")
-                  ]
+                "title":"नन्ही चिड़िया",
+                "scenes":[
+                  ("एक पेड़ पर प्यारी सी चिड़िया चिन्नी रहती थी।","bird"),
+                  ("एक दिन तेज हवा से उसका घोंसला टूट गया।","wind"),
+                  ("चिन्नी बहुत उदास हो गई।","sad"),
+                  ("एक गिलहरी ने उसे देखा और मदद करने पहुंची।","squirrel"),
+                  ("दोनों ने मिलकर टहनियां इकट्ठी कीं।","sticks"),
+                  ("उन्होंने मिलकर एक सुंदर नया घोंसला बनाया।","nest"),
+                  ("चिन्नी बहुत खुश हुई और दोनों दोस्त बन गए।","happybird"),
+                  ("सीख: मिलकर काम करने से मुश्किल आसान हो जाती है।","lesson")
+                ]
+              },
+              {
+                "title":"मेहनती चींटी",
+                "scenes":[
+                  ("एक छोटी चींटी रोज मेहनत करके खाना जमा करती थी।","ant"),
+                  ("उसके दोस्त उसका मजाक उड़ाते थे।","friends"),
+                  ("चींटी बिना रुके अपना काम करती रही।","ant_work"),
+                  ("कुछ दिनों बाद जंगल में तेज बारिश शुरू हो गई।","rain"),
+                  ("कई जानवरों के पास खाना नहीं था।","sad"),
+                  ("चींटी ने अपना जमा किया खाना दोस्तों के साथ बांटा।","sharing"),
+                  ("सबने चींटी को धन्यवाद दिया।","happy"),
+                  ("सीख: मेहनत और मदद दोनों बहुत अच्छी आदतें हैं।","lesson")
+                ]
               }
           ]
 
           story = random.choice(stories)
 
-          async def make_voice():
-              full_text = " ".join(x[0] for x in story["scenes"])
-              tts = edge_tts.Communicate(
-                  full_text,
-                  "hi-IN-SwaraNeural"
-              )
+          async def voice():
+              text = " ".join(s[0] for s in story["scenes"])
+              tts = edge_tts.Communicate(text, "hi-IN-SwaraNeural")
               await tts.save("voice.mp3")
 
-          asyncio.run(make_voice())
+          asyncio.run(voice())
 
-          def font(path, size):
-              return ImageFont.truetype(path, size)
+          def F(path,size):
+              return ImageFont.truetype(path,size)
 
-          def draw_center(draw, text, y, fnt):
-              box = draw.multiline_textbbox(
-                  (0, 0), text, font=fnt, align="center"
-              )
-              x = (W - (box[2] - box[0])) // 2
+          def center(draw,text,y,font):
+              box=draw.multiline_textbbox((0,0),text,font=font,align="center")
+              x=(W-(box[2]-box[0]))//2
               draw.multiline_text(
-                  (x, y),
-                  text,
-                  font=fnt,
-                  fill="black",
-                  align="center",
-                  spacing=8,
-                  stroke_width=2,
-                  stroke_fill="white"
+                  (x,y),text,font=font,fill="black",
+                  align="center",spacing=8,
+                  stroke_width=2,stroke_fill="white"
               )
 
-          def make_scene(kind, text, index):
-              img = Image.new("RGB", (W, H), (190, 230, 255))
-              d = ImageDraw.Draw(img)
+          def scene(kind,text,n):
+              img=Image.new("RGB",(W,H),(175,225,255))
+              d=ImageDraw.Draw(img)
 
-              # Sky
-              d.rectangle([0, 0, W, H], fill=(185, 225, 255))
+              # sky
+              d.rectangle([0,0,W,520],fill=(175,225,255))
 
-              # Sun
-              d.ellipse([1030, 50, 1150, 170], fill=(255, 220, 80))
+              # sun
+              d.ellipse([1030,55,1160,185],fill=(255,220,70))
 
-              # Grass
-              d.rectangle([0, 520, W, H], fill=(125, 190, 90))
+              # mountains
+              d.polygon([(0,520),(250,270),(500,520)],fill=(110,165,120))
+              d.polygon([(350,520),(700,250),(1050,520)],fill=(95,150,115))
 
-              # Mountains
-              d.polygon(
-                  [(0,520),(230,270),(430,520)],
-                  fill=(120,170,125)
-              )
-              d.polygon(
-                  [(350,520),(650,250),(950,520)],
-                  fill=(105,160,120)
-              )
+              # grass
+              d.rectangle([0,500,W,H],fill=(105,185,90))
 
-              # Trees
-              for x in [80, 1100]:
-                  d.rectangle([x+45,390,x+75,560], fill=(120,80,45))
-                  d.ellipse([x,300,x+120,440], fill=(55,150,75))
-                  d.ellipse([x+25,260,x+145,410], fill=(65,165,80))
+              # trees
+              for x in [70,1080]:
+                  d.rectangle([x+45,350,x+80,530],fill=(125,80,45))
+                  d.ellipse([x,260,x+130,400],fill=(45,150,70))
+                  d.ellipse([x+30,220,x+160,370],fill=(55,165,75))
 
-              # Characters
-              if kind in ["forest","coin","think","friends","turtle","return","happy"]:
-                  # Rabbit
-                  cx, cy = 500, 430
+              # rabbit
+              if kind in ["rabbit","rabbit_coin","think","return","happy","friends"]:
+                  x,y=440,420
+                  d.ellipse([x-55,y-145,x-5,y-45],fill=(245,245,245),outline="black",width=4)
+                  d.ellipse([x+5,y-145,x+55,y-45],fill=(245,245,245),outline="black",width=4)
+                  d.ellipse([x-80,y-80,x+80,y+80],fill=(250,250,250),outline="black",width=4)
+                  d.ellipse([x-65,y+35,x+65,y+175],fill=(245,245,245),outline="black",width=4)
+                  d.ellipse([x-38,y-20,x-18,y],fill="black")
+                  d.ellipse([x+18,y-20,x+38,y],fill="black")
+                  d.ellipse([x-8,y+12,x+8,y+28],fill=(230,100,120))
+                  d.line([x-50,y+70,x-110,y+105],fill="black",width=8)
+                  d.line([x+50,y+70,x+110,y+105],fill="black",width=8)
 
-                  # ears
-                  d.ellipse([cx-55,cy-150,cx-5,cy-50], fill=(245,245,245), outline=(80,80,80), width=4)
-                  d.ellipse([cx+5,cy-150,cx+55,cy-50], fill=(245,245,245), outline=(80,80,80), width=4)
+              # bell
+              if kind=="rabbit_coin":
+                  d.ellipse([650,390,750,490],fill=(255,190,40),outline=(150,100,20),width=5)
+                  d.rectangle([665,465,735,490],fill=(230,160,25))
 
-                  # body/head
-                  d.ellipse([cx-80,cy-70,cx+80,cy+90], fill=(250,250,250), outline=(80,80,80), width=4)
-                  d.ellipse([cx-65,cy+40,cx+65,cy+190], fill=(245,245,245), outline=(80,80,80), width=4)
+              # thinking bubble
+              if kind=="think":
+                  d.ellipse([700,180,900,320],fill="white",outline="black",width=3)
+                  center(d,"सोच रहा हूँ",210,F(BOLD,30))
 
-                  # eyes
-                  d.ellipse([cx-40,cy-15,cx-20,cy+5], fill=(30,30,30))
-                  d.ellipse([cx+20,cy-15,cx+40,cy+5], fill=(30,30,30))
+              # deer
+              if kind=="deer":
+                  x,y=820,430
+                  d.ellipse([x-90,y-55,x+90,y+55],fill=(175,115,65),outline="black",width=4)
+                  d.ellipse([x+65,y-95,x+135,y-10],fill=(185,125,70),outline="black",width=4)
+                  d.line([x+95,y-80,x+65,y-125],fill="black",width=7)
+                  d.line([x+115,y-80,x+145,y-125],fill="black",width=7)
+                  d.ellipse([x+85,y-55,x+100,y-40],fill="black")
 
-                  # nose
-                  d.ellipse([cx-8,cy+15,cx+8,cy+30], fill=(230,120,130))
+              # friends
+              if kind=="friends":
+                  d.ellipse([760,380,850,470],fill=(220,170,90),outline="black",width=4)
+                  d.ellipse([900,380,990,470],fill=(130,190,230),outline="black",width=4)
 
-                  # arms
-                  d.line([cx-55,cy+70,cx-110,cy+110], fill=(80,80,80), width=8)
-                  d.line([cx+55,cy+70,cx+110,cy+110], fill=(80,80,80), width=8)
-
-              # Coin
-              if kind in ["coin","return"]:
-                  d.ellipse([610,400,710,500], fill=(255,205,45), outline=(180,130,20), width=6)
-                  draw_center(d, "₹", 410, font(BOLD, 55))
-
-              # Turtle
-              if kind in ["turtle","return","happy"]:
-                  x,y=820,470
-                  d.ellipse([x-90,y-55,x+90,y+55], fill=(75,155,85), outline=(40,90,50), width=5)
-                  d.ellipse([x+70,y-35,x+125,y+20], fill=(90,180,100), outline=(40,90,50), width=4)
-                  d.ellipse([x+90,y-20,x+100,y-10], fill=(20,20,20))
-                  d.ellipse([x-80,y-5,x-45,y+30], fill=(90,180,100))
-                  d.ellipse([x+20,y-5,x+55,y+30], fill=(90,180,100))
-
-              # Bird
+              # bird
               if kind in ["bird","wind","sad","happybird"]:
-                  x,y=600,280
-                  d.ellipse([x-70,y-45,x+70,y+45], fill=(250,220,60), outline=(100,90,30), width=4)
-                  d.polygon([(x+60,y),(x+120,y-25),(x+120,y+25)], fill=(240,150,50))
-                  d.ellipse([x+25,y-25,x+40,y-10], fill=(20,20,20))
-                  d.arc([x-50,y-30,x+50,y+60], 200, 340, fill=(180,150,30), width=8)
+                  x,y=600,300
+                  d.ellipse([x-75,y-50,x+75,y+50],fill=(250,220,60),outline="black",width=4)
+                  d.polygon([(x+65,y),(x+125,y-25),(x+125,y+25)],fill=(240,140,40))
+                  d.ellipse([x+20,y-25,x+38,y-7],fill="black")
 
-              # Squirrel
+              # squirrel
               if kind in ["squirrel","sticks","nest"]:
-                  x,y=850,450
-                  d.ellipse([x-65,y-55,x+65,y+65], fill=(175,105,55), outline=(100,60,35), width=4)
-                  d.ellipse([x+45,y-90,x+105,y-10], fill=(185,115,60), outline=(100,60,35), width=4)
-                  d.ellipse([x+60,y-55,x+75,y-40], fill=(20,20,20))
-                  d.arc([x-130,y-130,x+20,y+40], 270, 90, fill=(180,105,50), width=25)
+                  x,y=850,430
+                  d.ellipse([x-70,y-55,x+70,y+65],fill=(175,105,55),outline="black",width=4)
+                  d.ellipse([x+45,y-90,x+105,y-10],fill=(185,115,60),outline="black",width=4)
+                  d.ellipse([x+62,y-55,x+76,y-41],fill="black")
 
-              # Nest
-              if kind in ["nest","happybird"]:
-                  d.ellipse([430,400,760,510], fill=(135,85,45), outline=(80,50,30), width=5)
-                  for i in range(8):
-                      xx=460+i*35
-                      d.line([xx,420,xx+40,480], fill=(190,120,60), width=8)
+              # nest
+              if kind=="nest":
+                  d.ellipse([430,400,760,520],fill=(135,85,45),outline="black",width=5)
+                  for i in range(7):
+                      d.line([450+i*40,420,500+i*40,500],fill=(190,120,60),width=8)
 
-              # Wind lines
-              if kind == "wind":
-                  for yy in [300,370,440]:
-                      d.arc([150,yy,600,yy+100], 190, 350, fill=(255,255,255), width=8)
+              # ant
+              if kind in ["ant","ant_work","sharing"]:
+                  for cx,cy in [(600,410),(650,410),(700,410)]:
+                      d.ellipse([cx-35,cy-35,cx+35,cy+35],fill=(50,45,45),outline="black",width=3)
+                  d.line([565,410,520,370],fill="black",width=5)
+                  d.line([700,410,750,370],fill="black",width=5)
 
-              # Sad cloud
-              if kind == "sad":
-                  d.ellipse([180,120,400,240], fill=(170,175,185))
-                  d.ellipse([320,100,560,250], fill=(180,185,195))
-                  d.ellipse([480,130,700,240], fill=(170,175,185))
+              # rain
+              if kind=="rain":
+                  for x in range(100,1200,100):
+                      for y in range(80,450,100):
+                          d.line([x,y,x-15,y+50],fill=(80,140,210),width=5)
 
-              # Story text box
+              # lesson
+              if kind=="lesson":
+                  d.ellipse([480,160,800,430],fill=(255,235,120),outline=(180,130,30),width=6)
+
+              # text box
               d.rounded_rectangle(
-                  [70, 555, 1210, 690],
+                  [60,550,1220,690],
                   radius=25,
-                  fill=(255,255,255),
-                  outline=(70,70,70),
+                  fill="white",
+                  outline=(60,60,60),
                   width=3
               )
 
-              draw_center(
-                  d,
-                  text,
-                  575,
-                  font(FONT, 30)
-              )
+              wrapped=textwrap.fill(text,width=48)
+              center(d,wrapped,570,F(FONT,30))
 
-              # Scene number
-              d.text(
-                  (30,25),
-                  f"कहानी {index+1}",
-                  font=font(BOLD,24),
-                  fill=(50,50,50)
-              )
+              d.text((25,25),f"कहानी {n+1}",font=F(BOLD,24),fill=(50,50,50))
+              img.save(f"scene_{n:02d}.png")
 
-              img.save(f"scene_{index:02d}.png")
+          for i,(text,kind) in enumerate(story["scenes"]):
+              scene(kind,text,i)
 
-          for i, (text, kind) in enumerate(story["scenes"]):
-              make_scene(kind, text, i)
-
-          # Create concat file
-          with open("concat.txt", "w", encoding="utf-8") as f:
+          with open("concat.txt","w",encoding="utf-8") as f:
               for i in range(len(story["scenes"])):
                   f.write(f"file 'scene_{i:02d}.png'\n")
-                  f.write("duration 7\n")
-              f.write(
-                  f"file 'scene_{len(story['scenes'])-1:02d}.png'\n"
-              )
+                  f.write("duration 6\n")
+              f.write(f"file 'scene_{len(story['scenes'])-1:02d}.png'\n")
 
-          # Create slideshow video
           subprocess.run([
               "ffmpeg","-y",
-              "-f","concat",
-              "-safe","0",
+              "-f","concat","-safe","0",
               "-i","concat.txt",
-              "-vf",
-              "scale=1280:720,format=yuv420p",
-              "-r",str(FPS),
+              "-vf","scale=1280:720,format=yuv420p",
+              "-r","30",
               "-c:v","libx264",
               "-pix_fmt","yuv420p",
-              "slides.mp4"
-          ], check=True)
+              "video.mp4"
+          ],check=True)
 
-          # Add narration
           subprocess.run([
               "ffmpeg","-y",
-              "-i","slides.mp4",
+              "-i","video.mp4",
               "-i","voice.mp3",
               "-c:v","copy",
               "-c:a","aac",
               "-b:a","128k",
               "-shortest",
               "kids-story.mp4"
-          ], check=True)
-
-          print("Created:", story["title"])
+          ],check=True)
 
           with open("story_title.txt","w",encoding="utf-8") as f:
               f.write(story["title"])
 
+          print("NEW STORY CREATED:",story["title"])
           PY
 
           python make_video.py
 
-      - name: Save Video
+      - name: Upload Video
         uses: actions/upload-artifact@v4
         with:
           name: kids-story-video
           path: |
             kids-story.mp4
             story_title.txt
-            scene_*.png
           retention-days: 7
